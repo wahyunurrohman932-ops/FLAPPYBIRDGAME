@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Flappy Bird</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    :root {
+      --bg: #70c5ce;
+      --floor: #ded895;
+      --text: #1b1b1b;
+      --primary: #3b7dd8;
+      --primary-hover: #2a64b5;
+      --panel-bg: rgba(255, 255, 255, 0.95);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(180deg, var(--bg) 0%, #87d5db 60%, #65c0cd 100%);
+      color: var(--text);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem;
+    }
+
+    .main {
+      width: 100%;
+      max-width: 480px;
+      position: relative;
+    }
+
+    .game-frame {
+      position: relative;
+      width: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.18);
+      background: var(--bg);
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      touch-action: none;
+    }
+
+    /* Sistem Panel Overlay */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      pointer-events: none;
+      padding: 1rem;
+    }
+
+    .panel {
+      pointer-events: auto;
+      width: 100%;
+      max-width: 340px;
+      background: var(--panel-bg);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+      text-align: center;
+      display: none; /* Disembunyikan secara default */
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .panel.active {
+      display: flex;
+    }
+
+    .panel h1, .panel h2 {
+      font-size: 1.8rem;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Tombol */
+    button {
+      padding: 0.8rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      background: var(--primary);
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      width: 100%;
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 125, 216, 0.3);
+    }
+
+    button.btn-secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+    button.btn-secondary:hover {
+      background: #c8c8c8;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    button.btn-danger {
+      background: #dc3545;
+    }
+    button.btn-danger:hover {
+      background: #c82333;
+      box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+    }
+
+    /* UI Loading */
+    .loading-container {
+      width: 100%;
+      background: #ddd;
+      height: 12px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 1rem;
+    }
+    .loading-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+    .loading-text {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin-top: 0.5rem;
+    }
+
+    /* UI Pengaturan & Statistik */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+      gap: 0.4rem;
+    }
+    .form-group label {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .form-group input[type="range"] {
+      width: 100%;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-direction: row;
+    }
+    .checkbox-group input {
+      width: 18px;
+      height: 18px;
+    }
+
+    .stat-box {
+      background: #f1f1f1;
+      padding: 1rem;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+    }
+    .stat-label {
+      font-weight: normal;
+      opacity: 0.8;
+    }
+
+    /* Game In-Play UI */
+    .game-ui {
+      position: absolute;
+      top: 1rem;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      pointer-events: none;
+      display: none;
+    }
+    .game-ui.active {
+      display: block;
+    }
+    .game-score {
+      font-size: 3rem;
+      font-weight: 800;
+      color: white;
+      -webkit-text-stroke: 2px black;
+      text-shadow: 2px 2px 0 #000;
+    }
+  </style>
+</head>
+<body>
+  <audio id="bgMusic" loop autoplay style="display:none;">
+    <source src="bgm.mp3" type="audio/mp3">
+</audio>
+  <main class="main">
+    <div class="game-frame">
+      <canvas id="gameCanvas" width="480" height="640"></canvas>
+      
+      <div class="game-ui" id="gameUI">
+        <div class="game-score" id="ingameScore">0</div>
+      </div>
+
+      <div class="overlay" id="overlay">
+        
+        <div class="panel active" id="loadingPanel">
+          <h1>Flappy Bird</h1>
+          <p>Mempersiapkan game...</p>
+          <div class="loading-container">
+            <div class="loading-bar" id="loadingBar"></div>
+          </div>
+          <p class="loading-text" id="loadingText">Memulai inisialisasi...</p>
+        </div>
+
+        <div class="panel" id="menuPanel">
+          <h1>Flappy Bird</h1>
+          <button id="btnStartGame">Mulai Game</button>
+          <button id="btnSettings" class="btn-secondary">Pengaturan</button>
+          <button id="btnStats" class="btn-secondary">Statistik</button>
+        </div>
+
+        <div class="panel" id="settingsPanel">
+          <h2>Pengaturan</h2>
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="chkClouds" checked>
+            <label for="chkClouds">Tampilkan Awan Animasi</label>
+          </div>
+          <div class="form-group">
+            <label for="rangeGravity">Gravitasi: <span id="valGravity">0.20</span></label>
+            <input type="range" id="rangeGravity" min="0.05" max="0.5" step="0.01" value="0.20">
+          </div>
+          <div class="form-group">
+            <label for="rangeJump">Kekuatan Lompat: <span id="valJump">-3.0</span></label>
+            <input type="range" id="rangeJump" min="-6.0" max="-1.0" step="0.1" value="-3.0">
+          </div>
+          <button id="btnSaveSettings" class="btn-primary">Simpan & Kembali</button>
+        </div>
+
+        <div class="panel" id="statsPanel">
+          <h2>Statistik</h2>
+          <div class="stat-box">
+            <span class="stat-label">Skor Tertinggi</span>
+            <span id="statBestScore">0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Waktu Bermain</span>
+            <span id="statPlayTime">0m 0s</span>
+          </div>
+          <button id="btnResetStats" class="btn-danger">Reset Data</button>
+          <button id="btnBackFromStats" class="btn-secondary">Kembali</button>
+        </div>
+
+        <div class="panel" id="gameStartPanel" style="background: transparent; box-shadow: none; color: white;">
+          <h2 style="color: white; -webkit-text-stroke: 1px black;">Bersiap!</h2>
+          <p style="font-size: 1.2rem; -webkit-text-stroke: 0.5px black;">Tekan <strong>Spasi</strong> / Ketuk Layar</p>
+          <button id="btnCancelGame" class="btn-secondary" style="margin-top: 2rem; width: auto; align-self: center;">Kembali ke Menu</button>
+        </div>
+
+        <div class="panel" id="gameOverPanel">
+          <h2>Game Over</h2>
+          <div class="stat-box">
+            <span class="stat-label">Skor Kamu</span>
+            <span id="finalScore">0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Terbaik</span>
+            <span id="bestScoreGO">0</span>
+          </div>
+          <button id="btnRestart">Main Lagi</button>
+          <button id="btnBackToMenu" class="btn-secondary">Menu Utama</button>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const GAME_WIDTH = 480;
+    const GAME_HEIGHT = 640;
+
+    // --- MANAJEMEN STATE APLIKASI ---
+    // State yang tersedia: 'LOADING', 'MENU', 'SETTINGS', 'STATS', 'GAME'
+    let appState = 'LOADING'; 
+    let gameState = 'START'; // 'START', 'PLAYING', 'GAMEOVER'
+
+    // --- KONFIGURASI & STATISTIK ---
+    let config = {
+      clouds: true,
+      gravity: 0.20,
+      jump: -3.0
+    };
+    let stats = {
+      bestScore: 0,
+      playTimeSeconds: 0
+    };
+
+    // --- VARIABEL GAME ---
+    let lastTime = 0;
+    let score = 0;
+    const PIPE_SPEED = 2.4;
+    const PIPE_GAP = 170;
+    const PIPE_WIDTH = 64;
+    const PIPE_INTERVAL = 1600; 
+    const FLOOR_HEIGHT = 96;
+    let pipes = [];
+    let nextPipeTime = 0;
+    let clouds = [];
+    let gameSessionStartTime = 0; // Untuk menghitung waktu main
+
+    const bird = {
+      x: GAME_WIDTH * 0.25,
+      y: GAME_HEIGHT * 0.4,
+      radius: 16,
+      velocity: 0,
+      rotation: 0,
+    };
+
+    // --- DOM Elements ---
+    const panels = {
+      LOADING: document.getElementById("loadingPanel"),
+      MENU: document.getElementById("menuPanel"),
+      SETTINGS: document.getElementById("settingsPanel"),
+      STATS: document.getElementById("statsPanel"),
+      GAME_START: document.getElementById("gameStartPanel"),
+      GAME_OVER: document.getElementById("gameOverPanel")
+    };
+    const gameUI = document.getElementById("gameUI");
+    const overlay = document.getElementById("overlay");
+    const ingameScoreEl = document.getElementById("ingameScore");
+
+    // --- FUNGSI UTILITAS & PENYIMPANAN ---
+    function loadData() {
+      const savedConfig = localStorage.getItem('flappyConfig');
+      const savedStats = localStorage.getItem('flappyStats');
+      if (savedConfig) config = { ...config, ...JSON.parse(savedConfig) };
+      if (savedStats) stats = { ...stats, ...JSON.parse(savedStats) };
+      
+      // Update form UI dengan data tersimpan
+      document.getElementById('chkClouds').checked = config.clouds;
+      document.getElementById('rangeGravity').value = config.gravity;
+      document.getElementById('valGravity').textContent = config.gravity;
+      document.getElementById('rangeJump').value = config.jump;
+      document.getElementById('valJump').textContent = config.jump;
+    }
+
+    function saveData() {
+      localStorage.setItem('flappyConfig', JSON.stringify(config));
+      localStorage.setItem('flappyStats', JSON.stringify(stats));
+    }
+
+    function formatTime(totalSeconds) {
+      const m = Math.floor(totalSeconds / 60);
+      const s = Math.floor(totalSeconds % 60);
+      return `${m}m ${s}s`;
+    }
+
+    // --- MANAJEMEN TAMPILAN (UI) ---
+    function switchAppState(newState) {
+      appState = newState;
+      
+      // Sembunyikan semua panel
+      Object.values(panels).forEach(panel => panel.classList.remove('active'));
+      gameUI.classList.remove('active');
+
+      if (newState === 'LOADING') panels.LOADING.classList.add('active');
+      else if (newState === 'MENU') panels.MENU.classList.add('active');
+      else if (newState === 'SETTINGS') panels.SETTINGS.classList.add('active');
+      else if (newState === 'STATS') {
+        document.getElementById('statBestScore').textContent = stats.bestScore;
+        document.getElementById('statPlayTime').textContent = formatTime(stats.playTimeSeconds);
+        panels.STATS.classList.add('active');
+      }
+      else if (newState === 'GAME') {
+        gameUI.classList.add('active');
+        if (gameState === 'START') panels.GAME_START.classList.add('active');
+        if (gameState === 'GAMEOVER') panels.GAME_OVER.classList.add('active');
+      }
+
+      // Hide overlay entirely if playing
+      if (newState === 'GAME' && gameState === 'PLAYING') {
+        overlay.style.display = 'none';
+      } else {
+        overlay.style.display = 'flex';
+      }
+    }
+
+    // --- SISTEM LOADING ---
+    function runLoading() {
+      const steps = [
+        { percent: 10, msg: "Memuat aset visual..." },
+        { percent: 40, msg: "Menyiapkan mesin fisika..." },
+        { percent: 70, msg: "Memuat data tersimpan..." },
+        { percent: 90, msg: "Mempersiapkan kontrol..." },
+        { percent: 100, msg: "Selesai!" }
+      ];
+      
+      let stepIdx = 0;
+      const bar = document.getElementById("loadingBar");
+      const text = document.getElementById("loadingText");
+
+      const interval = setInterval(() => {
+        if (stepIdx >= steps.length) {
+          clearInterval(interval);
+          switchAppState('MENU');
+          return;
+        }
+        bar.style.width = steps[stepIdx].percent + '%';
+        text.textContent = steps[stepIdx].msg;
+        stepIdx++;
+      }, 400); // Kecepatan loading bohongan
+    }
+
+    // --- MEKANIKA GAME ---
+    function initClouds() {
+      clouds = [];
+      for (let i = 0; i < 4; i++) {
+        clouds.push({
+          x: Math.random() * GAME_WIDTH,
+          y: Math.random() * (GAME_HEIGHT / 2.5) + 20,
+          speed: 0.3 + Math.random() * 0.5,
+          scale: 0.6 + Math.random() * 0.8
+        });
+      }
+    }
+
+    function resetGame() {
+      score = 0;
+      pipes = [];
+      bird.y = GAME_HEIGHT * 0.4;
+      bird.velocity = 0;
+      bird.rotation = 0;
+      gameState = "START";
+      ingameScoreEl.textContent = "0";
+      switchAppState('GAME');
+    }
+
+    function startGame() {
+      gameState = "PLAYING";
+      lastTime = performance.now();
+      gameSessionStartTime = lastTime;
+      nextPipeTime = lastTime + PIPE_INTERVAL;
+      switchAppState('GAME'); // Refresh UI untuk hide overlay
+    }
+
+    function addPipe() {
+      const minY = 110;
+      const maxY = GAME_HEIGHT - FLOOR_HEIGHT - 110 - PIPE_GAP;
+      const gapTop = minY + Math.random() * (maxY - minY);
+      pipes.push({ x: GAME_WIDTH + PIPE_WIDTH, gapTop, passed: false });
+    }
+
+    function checkCollision() {
+      if (bird.y + bird.radius >= GAME_HEIGHT - FLOOR_HEIGHT) return true;
+      const circle = { x: bird.x, y: bird.y, r: bird.radius };
+
+      for (const pipe of pipes) {
+        if (pipe.x + PIPE_WIDTH < bird.x - bird.radius) continue;
+        if (pipe.x > bird.x + bird.radius) continue;
+
+        // Bounding box pipa atas dan bawah
+        const cx = Math.max(pipe.x, Math.min(circle.x, pipe.x + PIPE_WIDTH));
+        
+        // Cek Pipa Atas
+        const cyTop = Math.max(0, Math.min(circle.y, pipe.gapTop));
+        if ((circle.x - cx)**2 + (circle.y - cyTop)**2 <= circle.r**2) return true;
+
+        // Cek Pipa Bawah
+        const cyBot = Math.max(pipe.gapTop + PIPE_GAP, Math.min(circle.y, GAME_HEIGHT));
+        if ((circle.x - cx)**2 + (circle.y - cyBot)**2 <= circle.r**2) return true;
+      }
+      return false;
+    }
+
+    function endGame() {
+      gameState = "GAMEOVER";
+      
+      // Update Playtime
+      const sessionSeconds = (performance.now() - gameSessionStartTime) / 1000;
+      stats.playTimeSeconds += sessionSeconds;
+      
+      // Update Best Score
+      if (score > stats.bestScore) {
+        stats.bestScore = score;
+      }
+      
+      saveData();
+      
+      // Update UI Game Over
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('bestScoreGO').textContent = stats.bestScore;
+      switchAppState('GAME');
+    }
+
+    function flap() {
+      if (appState !== 'GAME' || gameState === 'GAMEOVER') return;
+      if (gameState === 'START') startGame();
+      bird.velocity = config.jump;
+    }
+
+    // --- GAME LOOP & RENDER ---
+    function update(delta) {
+      if (appState === 'GAME' && gameState === 'PLAYING') {
+        // Bird physics
+        bird.velocity += config.gravity * delta;
+        bird.y += bird.velocity;
+        
+        // Tilt bird
+        const tiltTarget = Math.max(-1, Math.min(1, bird.velocity / 12));
+        bird.rotation += (tiltTarget - bird.rotation) * 0.1;
+
+        // Pipes
+        if (performance.now() > nextPipeTime) {
+          addPipe();
+          nextPipeTime = performance.now() + PIPE_INTERVAL;
+        }
+
+        pipes = pipes
+          .map(p => ({ ...p, x: p.x - PIPE_SPEED * delta }))
+          .filter(p => p.x > -PIPE_WIDTH);
+
+        // Score
+        pipes.forEach(p => {
+          if (!p.passed && p.x + PIPE_WIDTH < bird.x) {
+            p.passed = true;
+            score += 1;
+            ingameScoreEl.textContent = score;
+          }
+        });
+
+        if (checkCollision()) endGame();
+      } else if (appState === 'GAME' && gameState === 'START') {
+         // Hovering effect saat belum mulai
+         bird.y = (GAME_HEIGHT * 0.4) + Math.sin(performance.now() / 200) * 5;
+      }
+
+      // Awan tetap jalan meski di menu utama
+      if (config.clouds) {
+        clouds.forEach(cloud => {
+          cloud.x -= cloud.speed * delta;
+          if (cloud.x + (100 * cloud.scale) < 0) {
+            cloud.x = GAME_WIDTH + 50;
+            cloud.y = Math.random() * (GAME_HEIGHT / 2.5) + 20;
+          }
+        });
+      }
+    }
+
+    function draw() {
+      // Background
+      const grad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+      grad.addColorStop(0, "#8fe3f6");
+      grad.addColorStop(0.55, "#70d3de");
+      grad.addColorStop(0.9, "#5fc1cf");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+      // Clouds
+      if (config.clouds) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+        clouds.forEach(c => {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.scale(c.scale, c.scale);
+          ctx.beginPath();
+          ctx.arc(30, 20, 20, 0, Math.PI*2);
+          ctx.arc(60, 20, 20, 0, Math.PI*2);
+          ctx.arc(45, 10, 25, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        });
+      }
+
+      // Pipes
+      if (appState === 'GAME' || pipes.length > 0) {
+        pipes.forEach(pipe => {
+          const x = pipe.x;
+          const topH = pipe.gapTop;
+          const botY = pipe.gapTop + PIPE_GAP;
+          ctx.fillStyle = "#60a957";
+          ctx.fillRect(x, 0, PIPE_WIDTH, topH);
+          ctx.fillRect(x, botY, PIPE_WIDTH, GAME_HEIGHT - FLOOR_HEIGHT - botY);
+          ctx.fillStyle = "#4e8c48";
+          ctx.fillRect(x - 4, topH - 14, PIPE_WIDTH + 8, 14);
+          ctx.fillRect(x - 4, botY, PIPE_WIDTH + 8, 14);
+        });
+      }
+
+      // Floor
+      const fy = GAME_HEIGHT - FLOOR_HEIGHT;
+      ctx.fillStyle = "#d7c58e";
+      ctx.fillRect(0, fy, GAME_WIDTH, FLOOR_HEIGHT);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+      // Animasi pergerakan lantai jika sedang main
+      const floorOffset = (appState === 'GAME' && gameState === 'PLAYING') ? -(performance.now() / 10 % 28) : 0;
+      for (let i = floorOffset - 28; i < GAME_WIDTH; i += 28) {
+        ctx.fillRect(i, fy + 6, 18, 6);
+      }
+
+      // Bird (hanya render jika di dalam state game)
+      if (appState === 'GAME') {
+        ctx.save();
+        ctx.translate(bird.x, bird.y);
+        ctx.rotate(bird.rotation * 0.35);
+        ctx.fillStyle = "#ffdc24";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, bird.radius, bird.radius * 0.8, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = "#f2b600";
+        ctx.beginPath();
+        ctx.moveTo(-bird.radius * 0.2, 2);
+        ctx.quadraticCurveTo(-bird.radius * 0.4, -bird.radius * 0.5, bird.radius * 0.6, -bird.radius * 0.3);
+        ctx.quadraticCurveTo(bird.radius * 0.15, 0, -bird.radius * 0.2, 2);
+        ctx.fill();
+        ctx.fillStyle = "#2b2b2b";
+        ctx.beginPath();
+        ctx.arc(bird.radius * 0.33, -bird.radius * 0.15, bird.radius * 0.17, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = "#ff7a00";
+        ctx.beginPath();
+        ctx.moveTo(bird.radius * 0.82, 0);
+        ctx.lineTo(bird.radius * 1.4, -bird.radius * 0.1);
+        ctx.lineTo(bird.radius * 1.4, bird.radius * 0.1);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function loop(timestamp) {
+      let delta = timestamp - lastTime;
+      lastTime = timestamp;
+      const d = Math.min(delta, 40) / 16;
+      update(d);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    // --- EVENT LISTENERS & INITIALIZATION ---
+    function setupEvents() {
+      // Menu Navigation
+      document.getElementById('btnStartGame').onclick = () => { resetGame(); };
+      document.getElementById('btnSettings').onclick = () => switchAppState('SETTINGS');
+      document.getElementById('btnStats').onclick = () => switchAppState('STATS');
+      document.getElementById('btnCancelGame').onclick = () => switchAppState('MENU');
+      document.getElementById('btnBackToMenu').onclick = () => switchAppState('MENU');
+      document.getElementById('btnRestart').onclick = () => { resetGame(); };
+      document.getElementById('btnBackFromStats').onclick = () => switchAppState('MENU');
+
+      // Settings Logic
+      document.getElementById('rangeGravity').oninput = (e) => { document.getElementById('valGravity').textContent = e.target.value; };
+      document.getElementById('rangeJump').oninput = (e) => { document.getElementById('valJump').textContent = e.target.value; };
+      
+      document.getElementById('btnSaveSettings').onclick = () => {
+        config.clouds = document.getElementById('chkClouds').checked;
+        config.gravity = parseFloat(document.getElementById('rangeGravity').value);
+        config.jump = parseFloat(document.getElementById('rangeJump').value);
+        saveData();
+        switchAppState('MENU');
+      };
+
+      // Stats Logic
+      document.getElementById('btnResetStats').onclick = () => {
+        if(confirm("Yakin ingin menghapus semua statistik?")) {
+          stats.bestScore = 0;
+          stats.playTimeSeconds = 0;
+          saveData();
+          switchAppState('STATS'); // Refresh UI
+        }
+      };
+
+      // Controls Setup
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); flap(); }
+      });
+      window.addEventListener("pointerdown", (e) => {
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') flap();
+      });
+
+      // Responsiveness
+      const resize = () => {
+        const scale = Math.min(canvas.clientWidth / GAME_WIDTH, canvas.clientHeight / GAME_HEIGHT);
+        canvas.width = GAME_WIDTH;
+        canvas.height = GAME_HEIGHT;
+        canvas.style.width = `${GAME_WIDTH * scale}px`;
+        canvas.style.height = `${GAME_HEIGHT * scale}px`;
+      };
+      window.addEventListener("resize", resize);
+      resize();
+    }
+
+    // --- BOOTSTRAP ---
+    function init() {
+      loadData();
+      initClouds();
+      setupEvents();
+      switchAppState('LOADING');
+      runLoading();
+      
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    }
+
+    init();
+  </script>
+  <script>
+    document.addEventListener('click', function() {
+        const audio = document.getElementById('bgMusic');
+        audio.play();
+    }, { once: true });
+</script>
+</body>
+</html>
